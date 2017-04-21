@@ -6,10 +6,11 @@ import pickle
 
 #to check is the user exist in the savefile
 def check_user_exist(list, input):
-	for i in list:
-		print list
-		if input in list:
-			return 1
+	if input in list:
+		return True
+	else
+		return False
+
 #to add user into the list, then update savefile
 def add_user(list, inputUser, inputPass):
 	list[inputUser] = inputPass
@@ -20,11 +21,14 @@ def check_password(list, inputUser, inputPass):
 		return 1
 #update username to port list association
 def update_online_list(list, inputUser, port):
-	list[inputUser] = port
+	list[port] = inputUser
+
+def remove_online_list(list, port):
+	list.pop(port, None)
 
 #def new_user(list):
 
-#def send_message():
+#def send_message(socket, message):
 
 #def broadcast_online_list():
 
@@ -45,24 +49,8 @@ userpassList={	"Tom":"Tom11",
 			  	"Beth":"Beth33"
 			 }
 
-print userpassList
-
-add_user(userpassList, "me", "me11")
-
-print check_user_exist(userpassList, "me")
-
-check_password(userpassList, "me", "me11")
+userportList = {}
 
 
-print "savingfile"
-
-save_file(userpassList)
-
-new=read_file()
-
-
-
-
-print new == userpassList
 
 
