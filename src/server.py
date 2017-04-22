@@ -34,9 +34,21 @@ def update_online_list(list, inputUser, port):
 def remove_online_list(list, port):
 	list.pop(port, None)
 
-#def new_user(list):
+def check_if_being_used(list, username):
+	for x in list:
+		if list[x] == username:
+			return True
 
-#def broadcast_online_list():
+	return False
+
+
+def broadcast_online_list(sock, list):
+	result="\r<SERVER> Online List: "
+	for x in list:
+		if list[x] != False:
+			result = result + list[x] + ','
+
+	sock.send(result+"\n")
 
 #save user and password list to a pickle file
 def save_file(list):
@@ -60,6 +72,10 @@ def broadcast_data (sock, message):
                 # broken socket connection may be, chat client pressed ctrl+c for example
 				socket.close()
 				CONNECTION_LIST.remove(socket)
+				if userportList[sock] != False:
+					broadcast_data(sock, "\r<SERVER> %s is offline\n" % userportList[sock])
+
+
 
     
 userpassList=read_file()
@@ -70,16 +86,18 @@ userportList= {}
 # List to keep track of socket descriptors
 CONNECTION_LIST = []
 RECV_BUFFER = 4096 # Advisable to keep it as an exponent of 2
-PORT = 5000
+PORT = 15100
+MAX_CONNECTION = 3
  
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# this has no effect, why ?
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server_socket.bind(("0.0.0.0", PORT))
 server_socket.listen(10)
 
 # Add server socket to the list of readable connections
 CONNECTION_LIST.append(server_socket)
+
+
 
 print "Chat server started on port " + str(PORT)
 
@@ -104,54 +122,95 @@ while 1:
                 #In Windows, sometimes when a TCP program closes abruptly,
                 # a "Connection reset by peer" exception will be thrown
 				data = sock.recv(RECV_BUFFER)
-				data = data.split(" ", 1)
+				
 				if data:
+					#if user use send command:
+					data = data.split(" ", 1)
+					
 					if data[0] == 'send':
 						if userportList[sock] == False:
-							sock.send("Sorry, Please login to send message. Enter 'login' to start\n")
+							sock.send("\r<SERVER> Error: Sorry, Please login to send message. Enter 'login' to start\n")
 
 						else:
-							print "Broadcasting: %s" % data[1]
-							broadcast_data(sock, "\r" + '<' + userportList[sock] + '> ' + data[1])
-					elif data[0] == 'login':
-						content = data[1].split(" ", 1)	
-						
-						if check_user_exist(userpassList, content[0]) == True:
-							if check_password(userpassList, content[0], content[1].rstrip("\n")):
-								sock.send("Welcome %s, you have been accepted.\n" % content[0])
-								print "%s has been authenticated correctly"%content[0]
-								update_online_list(userportList, content[0], sock)
-								broadcast_data(sock, "\r" + '<SERVER> %s is online.\n'%content[0])
+							content = data[1].split(" ", 1)
+							if content[0] == 'all':
+								print userportList[sock] +" to all: " + content[1]
+								broadcast_data(sock, "\r" + '<' + userportList[sock] + ' to all> ' + content[1])
 							else:
-								sock.send("Incorrect Login Credentials\n")
+								check=0
+								for x in userportList:
+									if userportList[x] == content[0] and userportList[sock] != content[0]:
+										x.send("\r" + '<'+ userportList[sock] +' to you>' + content[1])
+										print userportList[sock] +" to ("+userportList[x]+"): "+content[1]
+										check=1
+								if check == 0:
+									if userportList[sock] == content[0]:
+										sock.send("\r<SERVER> Error: You can't send a message to yourself\n")
+									else:
+										sock.send("\r<SERVER> Error: Username provided is not currently online or found.\n")
+					elif data[0] == 'send\n':
+						sock.send("\r<SERVER> Error: not enough argument. Please use the following: 'send all 'message' ' or 'send username 'message' '\n")
+					#if user use login command:		
+					elif data[0] == 'login':
+						content = data[1].split(" ", 1)
+						
+						if len(userportList) > MAX_CONNECTION:
+							sock.send("\r<SERVER> Error: Sorry, maximum amount of user connected is acheived. Please try again later.\n")
 						else:
-							sock.send("Incorrect Login Credentials\n")
+							if check_if_being_used(userportList, content[0]) == True:
+								sock.send("\r<SERVER> Error: Sorry, the user has already logon with a different client.\n")
+							else:
+								if check_user_exist(userpassList, content[0]) == True:
+									if check_password(userpassList, content[0], content[1].rstrip("\n")):
+										sock.send("\r<SERVER> Welcome %s, you have been logon.\n" % content[0])
+										print "%s logon to the server"%content[0]
+										update_online_list(userportList, content[0], sock)
+										broadcast_data(sock, "\r" + '<SERVER> %s is online.\n'%content[0])
+										
+									else:
+										sock.send("\r<SERVER> Error: Incorrect Login Credentials\n")
+								else:
+									sock.send("\r<SERVER> Error: No User Found\n")
+					#if user use newuser command:
 					elif data[0] == 'newuser':
 						content = data[1].split(" ", 1)
 						if check_user_exist(userpassList, content[0]) == False:
 							add_user(userpassList, content[0],content[1].rstrip("\n"))
-							sock.send("Welcome %s, you have been registed. Please login to proceed.\n"%content[0])
+							sock.send("\r<SERVER> Welcome %s, you have been registed. Please login to proceed.\n"%content[0]+'\n')
 						else:
-							sock.send("Username exist, please try again with a different username.\n")
+							sock.send("\r<SERVER> Error: Username exist, please try again with a different username.\n")
+					#if user use logout command:
 					elif data[0].rstrip("\n") == 'logout':
-						sock.send("Loging you out now\n")
+						sock.send("\r<SERVER> Loging you out now\n")
 						
-						broadcast_data(sock, "%s is offline\n" % userportList[sock])
-						print "Client (%s, %s) is offline. Username: %s" % addr, userportList[sock]
+						if userportList[sock]!=False:
+							
+							broadcast_data(sock, "\r<SERVER> %s is offline\n" % userportList[sock])
+						if userportList[sock]!=False:
+							print "%s is offline.\n" % userportList[sock]
 						sock.close()
 						CONNECTION_LIST.remove(sock)
 						remove_online_list(userportList,sock)
+					elif data[0] == 'login\n':
+						sock.send("\r<SERVER> Error: Please use the following format to login: 'login username password'\n")
+
+						
+					#if user use who command:
+					elif data[0].rstrip("\n") == 'who':
+						broadcast_online_list(sock, userportList)
 
 
-
+					#if user use random garbish command:
 					else:
-						sock.send("Sorry, Incorrect Command Received.\n")
+						sock.send("\r<SERVER> Error: Sorry, Incorrect command received or incorrect command format detected.\n")
 
 			except:
+				print "ERROR"
 				
-				print "Client (%s, %s) is offline" % addr
 				sock.close()
 				CONNECTION_LIST.remove(sock)
+
+				
 				continue
  
 server_socket.close()
