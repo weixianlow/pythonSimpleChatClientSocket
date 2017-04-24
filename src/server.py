@@ -67,19 +67,21 @@ def read_file():
 		return list
 
 #Function to broadcast chat messages to all connected clients
-def broadcast_data (sock, message):
+def broadcast_data (sock, message, list):
 	
     #Do not send the message to master socket and the client who has send us the message
 	for socket in CONNECTION_LIST:
 		if socket != server_socket and socket != sock :
 			try :
-				socket.send(message)
+				#to prevent sending 
+				if list[socket] != False:
+					socket.send(message)
 			except :
                 # broken socket connection may be, chat client pressed ctrl+c for example
 				socket.close()
 				CONNECTION_LIST.remove(socket)
 				if userportList[sock] != False:
-					broadcast_data(sock, "\r<SERVER> %s is offline\n" % userportList[sock])
+					broadcast_data(sock, "\r<SERVER> %s is offline\n" % userportList[sock], list)
 
 
 
@@ -158,7 +160,7 @@ try:
 								if content[0] == 'all':
 									print userportList[sock] +" to all: " + content[1]
 									#call broadcast_data
-									broadcast_data(sock, "\r" + '<' + userportList[sock] + ' to all> ' + content[1])
+									broadcast_data(sock, "\r" + '<' + userportList[sock] + ' to all> ' + content[1], userportList)
 								#if user didn't specify a command or specify a specific user
 								else:
 									check=0
@@ -185,6 +187,7 @@ try:
 
 						#if user use login command:		
 						elif data[0] == 'login':
+
 							content = data[1].split(" ", 1)
 							#to force user to logout before login as a new identity. 
 							if userportList[sock] != False:
@@ -211,7 +214,7 @@ try:
 											update_online_list(userportList, content[0], sock)
 
 											#notify online client that new user is added to server
-											broadcast_data(sock, "\r" + '<SERVER> %s is online.\n'%content[0])
+											broadcast_data(sock, "\r" + '<SERVER> %s is online.\n'%content[0], userportList)
 											
 										else:
 											#notify user password invalide
@@ -227,6 +230,11 @@ try:
 
 						#if user use newuser command:
 						elif data[0] == 'newuser':
+							#to ensure user will not beable to create new user while login
+							if userportList[sock] != False:
+								sock.send("\r<SERVER> Unable to create new user while login. Please logout and attempt again.\n")
+								break
+
 							content = data[1].split(" ", 1)
 							if check_user_exist(userpassList, content[0]) == False:
 
@@ -244,7 +252,7 @@ try:
 							
 							if userportList[sock]!=False:
 								#broadcast to people a client has disconnected
-								broadcast_data(sock, "\r<SERVER> %s is offline\n" % userportList[sock])
+								broadcast_data(sock, "\r<SERVER> %s is offline\n" % userportList[sock], userportList)
 							if userportList[sock]!=False:
 
 								print "%s is offline.\n" % userportList[sock]
@@ -255,15 +263,16 @@ try:
 							#update online list
 							remove_online_list(userportList,sock)
 
-
-						
-
 							
 						#if user use who command:
 
 						elif data[0].rstrip("\n") == 'who':
 							#notify user who is online
-							broadcast_online_list(sock, userportList)
+							if userportList[sock] != False:
+								broadcast_online_list(sock, userportList)
+							else: 
+								#To check if user has logon
+								sock.send("\r<SERVER> Please login to check online list.\n") 
 
 
 						#if user use random garbish command:
