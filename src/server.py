@@ -34,6 +34,7 @@ def check_password(list, inputUser, inputPass):
 def update_online_list(list, inputUser, port):
 	list[port] = inputUser
 
+
 #remove username from onlinelist after user logout
 def remove_online_list(list, port):
 	list.pop(port, None)
@@ -116,9 +117,19 @@ while 1:
 		if sock == server_socket:
         	
             # Handle the case in which there is a new connection recieved through server_socket
-				sockfd, addr = server_socket.accept()
-				CONNECTION_LIST.append(sockfd)
-				update_online_list(userportList, False, sockfd)
+
+				
+				
+					sockfd, addr = server_socket.accept()
+					CONNECTION_LIST.append(sockfd)
+					update_online_list(userportList, False, sockfd)
+
+					#To check if current active socket connection is more than MAX_CONNECTION, if yes, kick them off the connection and send error code. 
+					if len(userportList) > MAX_CONNECTION:
+						sockfd.send("\r<SERVER> Maximum connection reached, please try again later.\n")
+						remove_online_list(userportList, sockfd)
+						sockfd.close()
+						CONNECTION_LIST.remove(sockfd)
 		        
         #Some incoming message from a client
 		else:
