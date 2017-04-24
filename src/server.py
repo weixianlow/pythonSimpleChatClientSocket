@@ -282,5 +282,5 @@ try:
 #to check for Ctrl+c signal to turn off server.					
 except KeyboardInterrupt:
 	print "\n<WARNING> Turning Off Server\n"
-	server_socket.close()
-
+	
+server_socket.close()
